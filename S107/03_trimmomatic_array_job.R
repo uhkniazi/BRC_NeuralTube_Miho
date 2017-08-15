@@ -17,14 +17,14 @@ dbListTables(db)
 # check how many files each sample has
 g_did
 q = paste0('select count(File.idSample) as files, Sample.idData, Sample.title, Sample.id as SampleID from File, Sample
-           where (Sample.idData = 12 and File.idSample = Sample.id) group by File.idSample')
+           where (Sample.idData = 14 and File.idSample = Sample.id) group by File.idSample')
 dfQuery = dbGetQuery(db, q)
 dfQuery$title = gsub(" ", "", dfQuery$title, fixed = T)
 dfQuery
 
 # for each sample id, get the corresponding files
 cvQueries = paste0('select File.*, Sample.title from File, Sample 
-                   where (Sample.idData = 12 and Sample.id =', dfQuery$SampleID, ') and (File.idSample = Sample.id)')
+                   where (Sample.idData = 14 and Sample.id =', dfQuery$SampleID, ') and (File.idSample = Sample.id)')
 
 # set header variables 
 cvShell = '#!/bin/bash'
@@ -35,7 +35,7 @@ cvJobName = '#$ -N trim-array'
 cvStdout = '#$ -j y'
 cvMemoryReserve = '#$ -l h_vmem=19G'
 # set array job loop
-cvArrayJob = '#$ -t 1-71'
+cvArrayJob = '#$ -t 1-8'
 # using high memory queue with one slot and 19 Gigs of memory
 
 # set the directory names for trimmomatic
