@@ -186,6 +186,30 @@ boxplot.median.summary(oDiag, fBatch)
 plot.PCA(oDiag, fBatch)
 plot.dendogram(oDiag, fBatch, labels_cex = 0.8)
 
+### cluster using alphabets
+## get average for alphabets
+i = seq_along(lOb)
+lAlphabets = lapply(i, function(x){
+  m = t(mGetAlphabetByCycle(lOb[[x]]))
+  m = m[,c('A', 'T', 'G', 'C')]
+  r = rowSums(m)
+  m = sweep(m, 1, r, '/')
+  return(m)
+})
+names(lAlphabets) = names(lOb)
+mAlphabets = sapply(lAlphabets, function(x) return(x[,'A']))
+
+mBatch = (mAlphabets)
+colnames(mBatch) = paste0(dfBatches$fid, '-', dfBatches$title, '-', as.character(fReadDirection))
+
+oDiag = CDiagnosticPlots(mBatch, 'Sequence Content')
+
+plot.mean.summary(oDiag, fReadDirection)
+plot.sigma.summary(oDiag, fReadDirection)
+boxplot.median.summary(oDiag, fReadDirection)
+plot.PCA(oDiag, fReadDirection)
+plot.dendogram(oDiag, fReadDirection, labels_cex = 0.8)
+
 dev.off(dev.cur())
 
 
