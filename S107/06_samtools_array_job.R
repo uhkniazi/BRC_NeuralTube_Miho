@@ -115,13 +115,13 @@ bamq10=`sed -n ${number}p $paramfile | awk '{print $2}'`
 bamq10sort=`sed -n ${number}p $paramfile | awk '{print $3}'`
 bamrd=`sed -n ${number}p $paramfile | awk '{print $4}'`
 
-# 9. Run the program.", oFile)
+# 9. Run the program. NOTE: Samtools sorting done with -n for bismark compatibility", oFile)
 
 # remove low quality reads
 p1 = paste('samtools view -b -q 10', '$bamfile', '>', '$bamq10', sep=' ')
 com2 = paste(p1)
 # sort the file
-p1 = paste('samtools sort -o', '$bamq10sort', '$bamq10', sep=' ')
+p1 = paste('samtools sort -n -o', '$bamq10sort', '$bamq10', sep=' ')
 com3 = paste(p1)
 # remove duplicates, for paired end reads
 p1 = paste('samtools rmdup', '$bamq10sort', '$bamrd', sep=' ')
