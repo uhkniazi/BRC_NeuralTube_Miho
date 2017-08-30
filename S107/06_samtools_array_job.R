@@ -124,12 +124,12 @@ p1 = paste('samtools view -b -q 10', '$bamfile', '>', '$bamq10', sep=' ')
 com2 = paste(p1)
 # sort the file
 p1 = paste('java -Xmx30G -jar', cvPicard, 'SortSam OUTPUT=$bamq10sort', 
-           'INPUT=$bamq10 SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT',
+           'INPUT=$bamq10 SORT_ORDER=queryname VALIDATION_STRINGENCY=SILENT',
            sep=' ')
 com3 = paste(p1)
 # remove duplicates, for paired end reads
 p1 = paste('java -Xmx30G -jar', cvPicard, 'MarkDuplicates I=$bamq10sort', 'O=$bamrd',
-           'M=$bamrd_duplicate_metrics.txt REMOVE_DUPLICATES=true VALIDATION_STRINGENCY=SILENT', sep=' ')
+           'REMOVE_DUPLICATES=true VALIDATION_STRINGENCY=SILENT', sep=' ')
 com4 = paste(p1)
 # create index
 p1 = paste('samtools index', '$bamrd', sep=' ')
