@@ -36,7 +36,7 @@ cvQueries = paste0('select File.*, Sample.title from File, Sample
 # set header variables 
 cvShell = '#!/bin/bash'
 cvShell.2 = '#$ -S /bin/bash'
-cvProcessors = '#$ -pe smp 1'
+cvProcessors = '#$ -pe smp 8'
 cvWorkingDir = '#$ -cwd'
 cvJobName = '#$ -N samtools-array'
 cvStdout = '#$ -j y'
@@ -47,6 +47,7 @@ cvArrayJob = paste0('#$ -t 1-', nrow(dfCounts)/2)
 # set the directory names
 cvInput = 'input/'
 cvSam = '/opt/apps/bioinformatics/samtools/1.3.1/bin/samtools'
+cvPicard = '/opt/apps/bioinformatics/picard-tools/2.2.1/picard.jar'
 
 # create a parameter file and shell script
 dir.create('AutoScripts')
@@ -103,6 +104,7 @@ writeLines('\n\n', oFile)
 
 # module load
 writeLines(c('module load bioinformatics/samtools/1.3.1'), oFile)
+writeLines(c('module load bioinformatics/picard-tools/2.2.1'), oFile)
 writeLines('\n\n', oFile)
 
 ## write array job lines
@@ -115,16 +117,19 @@ bamq10=`sed -n ${number}p $paramfile | awk '{print $2}'`
 bamq10sort=`sed -n ${number}p $paramfile | awk '{print $3}'`
 bamrd=`sed -n ${number}p $paramfile | awk '{print $4}'`
 
-# 9. Run the program. NOTE: Samtools sorting done with -n for bismark compatibility", oFile)
+# 9. Run the program. NOTE: using Picard tools for coordinate sorting for bismark compatibility", oFile)
 
 # remove low quality reads
 p1 = paste('samtools view -b -q 10', '$bamfile', '>', '$bamq10', sep=' ')
 com2 = paste(p1)
 # sort the file
-p1 = paste('samtools sort -n -o', '$bamq10sort', '$bamq10', sep=' ')
+p1 = paste('java -Xmx30G -jar', cvPicard, 'SortSam OUTPUT=$bamq10sort', 
+           'INPUT=$bamq10 SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT',
+           sep=' ')
 com3 = paste(p1)
 # remove duplicates, for paired end reads
-p1 = paste('samtools rmdup', '$bamq10sort', '$bamrd', sep=' ')
+p1 = paste('java -Xmx30G -jar', cvPicard, 'MarkDuplicates I=$bamq10sort', 'O=$bamrd',
+           'M=$bamrd_duplicate_metrics.txt REMOVE_DUPLICATES=true VALIDATION_STRINGENCY=SILENT', sep=' ')
 com4 = paste(p1)
 # create index
 p1 = paste('samtools index', '$bamrd', sep=' ')
