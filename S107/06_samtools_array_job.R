@@ -36,7 +36,7 @@ cvQueries = paste0('select File.*, Sample.title from File, Sample
 # set header variables 
 cvShell = '#!/bin/bash'
 cvShell.2 = '#$ -S /bin/bash'
-cvProcessors = '#$ -pe smp 8'
+cvProcessors = '#$ -pe smp 3'
 cvWorkingDir = '#$ -cwd'
 cvJobName = '#$ -N samtools-array'
 cvStdout = '#$ -j y'
