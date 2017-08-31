@@ -82,7 +82,8 @@ temp = lapply(cvQueries, function(x){
   # remove duplicates
   s5 = paste0(cvInput, lf[[1]], '_q10_sort_rd.bam')
   s6 = paste0(cvInput, lf[[1]], '_q10_sort_rd.report.txt')
-  p1 = paste(s2, s3, s4, s5, s6, sep=' ')
+  s7 = paste0(cvInput, lf[[1]], '_q10_sort_rd_sort2.bam')
+  p1 = paste(s2, s3, s4, s5, s6, s7, sep=' ')
   writeLines(p1, oFile.param)
   return(data.frame(idSample=dfFiles$idSample[1], name=c(s2, s4, s5), type=c('original bam', 'quality 10 sorted bam',
                                                                              'quality 10 sorted bam duplicates removed'), 
@@ -118,6 +119,7 @@ bamq10=`sed -n ${number}p $paramfile | awk '{print $2}'`
 bamq10sort=`sed -n ${number}p $paramfile | awk '{print $3}'`
 bamrd=`sed -n ${number}p $paramfile | awk '{print $4}'`
 rdreport=`sed -n ${number}p $paramfile | awk '{print $5}'`
+bamrdsort2=`sed -n ${number}p $paramfile | awk '{print $6}'`
 
 # 9. Run the program. NOTE: using Picard tools for coordinate sorting for bismark compatibility", oFile)
 
@@ -126,18 +128,23 @@ p1 = paste('samtools view -b -q 10', '$bamfile', '>', '$bamq10', sep=' ')
 com2 = paste(p1)
 # sort the file
 p1 = paste('java -Xmx30G -jar', cvPicard, 'SortSam OUTPUT=$bamq10sort', 
-           'INPUT=$bamq10 SORT_ORDER=queryname VALIDATION_STRINGENCY=SILENT',
+           'INPUT=$bamq10 SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT',
            sep=' ')
 com3 = paste(p1)
 # remove duplicates, for paired end reads
 p1 = paste('java -Xmx30G -jar', cvPicard, 'MarkDuplicates I=$bamq10sort', 'O=$bamrd', 'M=$rdreport',
            'REMOVE_DUPLICATES=true VALIDATION_STRINGENCY=SILENT', sep=' ')
 com4 = paste(p1)
-# create index
-p1 = paste('samtools index', '$bamrd', sep=' ')
+# sort the file second time
+p1 = paste('java -Xmx30G -jar', cvPicard, 'SortSam OUTPUT=$bamrdsort2', 
+           'INPUT=$bamrd SORT_ORDER=queryname VALIDATION_STRINGENCY=SILENT',
+           sep=' ')
 com5 = paste(p1)
+# create index
+p1 = paste('samtools index', '$bamrdsort2', sep=' ')
+com6 = paste(p1)
 
-writeLines(c(com2, com3, com4, com5), oFile)
+writeLines(c(com2, com3, com4, com5, com6), oFile)
 writeLines('\n\n', oFile)
 
 close(oFile)
