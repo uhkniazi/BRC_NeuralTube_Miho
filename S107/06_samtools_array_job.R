@@ -81,7 +81,8 @@ temp = lapply(cvQueries, function(x){
   s4 = paste0(cvInput, lf[[1]], '_q10_sort.bam')
   # remove duplicates
   s5 = paste0(cvInput, lf[[1]], '_q10_sort_rd.bam')
-  p1 = paste(s2, s3, s4, s5, sep=' ')
+  s6 = paste0(cvInput, lf[[1]], '_q10_sort_rd.report.txt')
+  p1 = paste(s2, s3, s4, s5, s6, sep=' ')
   writeLines(p1, oFile.param)
   return(data.frame(idSample=dfFiles$idSample[1], name=c(s2, s4, s5), type=c('original bam', 'quality 10 sorted bam',
                                                                              'quality 10 sorted bam duplicates removed'), 
@@ -116,6 +117,7 @@ bamfile=`sed -n ${number}p $paramfile | awk '{print $1}'`
 bamq10=`sed -n ${number}p $paramfile | awk '{print $2}'`
 bamq10sort=`sed -n ${number}p $paramfile | awk '{print $3}'`
 bamrd=`sed -n ${number}p $paramfile | awk '{print $4}'`
+rdreport=`sed -n ${number}p $paramfile | awk '{print $5}'`
 
 # 9. Run the program. NOTE: using Picard tools for coordinate sorting for bismark compatibility", oFile)
 
@@ -128,7 +130,7 @@ p1 = paste('java -Xmx30G -jar', cvPicard, 'SortSam OUTPUT=$bamq10sort',
            sep=' ')
 com3 = paste(p1)
 # remove duplicates, for paired end reads
-p1 = paste('java -Xmx30G -jar', cvPicard, 'MarkDuplicates I=$bamq10sort', 'O=$bamrd',
+p1 = paste('java -Xmx30G -jar', cvPicard, 'MarkDuplicates I=$bamq10sort', 'O=$bamrd', 'M=$rdreport',
            'REMOVE_DUPLICATES=true VALIDATION_STRINGENCY=SILENT', sep=' ')
 com4 = paste(p1)
 # create index
