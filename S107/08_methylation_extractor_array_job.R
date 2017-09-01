@@ -27,6 +27,10 @@ dbDisconnect(db)
 dfSample$name = gsub(" ", "", dfSample$name, fixed = T)
 dfSample$title = gsub(" ", "", dfSample$title, fixed = T)
 
+## add postfix word to new file names that were sorted differently i.e.
+## using qname sorting using picard tools
+dfSample$name = gsub('rd.bam', 'rd_sort2.bam', dfSample$name)
+
 # set header variables 
 cvShell = '#!/bin/bash'
 cvShell.2 = '#$ -S /bin/bash'
