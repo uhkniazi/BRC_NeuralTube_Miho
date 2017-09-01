@@ -135,13 +135,14 @@ com3 = paste(p1)
 p1 = paste('java -Xmx30G -jar', cvPicard, 'MarkDuplicates I=$bamq10sort', 'O=$bamrd', 'M=$rdreport',
            'REMOVE_DUPLICATES=true VALIDATION_STRINGENCY=SILENT', sep=' ')
 com4 = paste(p1)
-# sort the file second time
+# sort the file second time for using with bismark methylation extractor
 p1 = paste('java -Xmx30G -jar', cvPicard, 'SortSam OUTPUT=$bamrdsort2', 
            'INPUT=$bamrd SORT_ORDER=queryname VALIDATION_STRINGENCY=SILENT',
            sep=' ')
 com5 = paste(p1)
 # create index
-p1 = paste('samtools index', '$bamrdsort2', sep=' ')
+## this step is done only on the coordinate sorted bam files
+p1 = paste('samtools index', '$bamrd', sep=' ')
 com6 = paste(p1)
 
 writeLines(c(com2, com3, com4, com5, com6), oFile)
