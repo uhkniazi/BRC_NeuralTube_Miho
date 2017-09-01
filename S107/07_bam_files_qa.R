@@ -79,10 +79,10 @@ df = lapply(seq_along(csFiles), function(x) dfParseBismarkReport(csFiles[x], nam
 dfBismark = do.call(cbind, df)
 
 setwd(gcswd)
-n = make.names(paste('CBamScaffold rd bs seq S107 miho rds'))
+n = make.names(paste('CBamScaffold rd picard bs seq S107 miho rds'))
 lAllBams$metaBismark = dfBismark
 lAllBams$meta = dfSample
-lAllBams$desc = paste('CBamScaffold object from S107 run for bs seq data for miho ishida with quality 10 duplicates removed', date())
+lAllBams$desc = paste('CBamScaffold object from S107 run for bs seq data for miho ishida with quality 10 duplicates removed using picard tools', date())
 n2 = paste0('~/Data/MetaData/', n)
 save(lAllBams, file=n2)
 
@@ -93,7 +93,7 @@ save(lAllBams, file=n2)
 # dbListFields(db, 'MetaFile')
 # df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
 #                 comment='CBamScaffold object from S107 run for bs seq data for miho ishida with quality 10 duplicates removed and standard settings on trimmomatic
-#                 with bismark alignment report as metadata')
+#                 with bismark alignment report as metadata. Processed using Picard tools instead of samtools.')
 # dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
 # dbDisconnect(db)
 
@@ -106,7 +106,7 @@ lAllBams$metaBismark = NULL
 names(lAllBams) = dfSample$title
 colnames(dfBismark) = dfSample$title
 
-pdf(file='Results/bam.q10.rd.qa.pdf')
+pdf(file='Results/bam.q10.rd.qa.picard.pdf')
 par(mfrow=c(2,2))
 ## returns the coverage for each scaffold in the bam file in matrix
 f1 = function(ob){
