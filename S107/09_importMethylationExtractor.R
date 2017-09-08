@@ -14,26 +14,27 @@ library(GenomicRanges)
 #       in bismark and the strand i.e. + for OT files (Original Top) and - for OB. returns the data
 #       in a GRagnes sorted object
 # Args: file: name of bismark file; strand: strand + or -
-# Rets: single stranded, sorted GRanges object
+# Rets: single stranded, sorted GRanges object with a Methylated mcols boolean variable
 f_oGRReadBismarkMethylExtractor = function(file, strand){
   # read the data from the tab separated file
   # also skip the first line as it has comments
   require(GenomicRanges)
+  # define string splitting function
+  f1 = function(str) strsplit(str, '\t', fixed=T)[[1]]
   gr = GRanges()
   # open the file 
   infile = file(file, 'r')
   input = readLines(infile, n = 1)
   options(warn = -1)
   while(TRUE){
-    input = readLines(infile, n = 1000000)
+    input = readLines(infile, n = 2000000)
     if (length(input) == 0) break; 
     ## create a array/data frame from the string
-    lString = strsplit(input, '\t')
-    df = do.call(rbind, lString)
+    df = vapply(input, f1, FUN.VALUE = character(5), USE.NAMES = F)
     ## mark strings with non methylated cytosines
-    f = df[,2] != '-'
+    f = df[2,] != '-'
     # create a GRanges object
-    grtemp = GRanges(df[,3], IRanges(as.numeric(df[,4]), as.numeric(df[,4])), strand=strand)
+    grtemp = GRanges(df[3,], IRanges(as.numeric(df[4,]), as.numeric(df[4,])), strand=strand)
     # add methylated flag
     grtemp$Methylated = f
     gr = append(gr, grtemp)
@@ -45,6 +46,12 @@ f_oGRReadBismarkMethylExtractor = function(file, strand){
   gc(verbose = FALSE)
   return(gr)  
 } # function
+
+s1 = Sys.time()
+g = f_oGRReadBismarkMethylExtractor(file, '+')
+s2 = Sys.time()
+s2 - s1
+
 
 ## connect to mysql database to get sample information
 library('RMySQL')
