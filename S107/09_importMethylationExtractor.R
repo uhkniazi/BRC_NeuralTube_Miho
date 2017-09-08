@@ -47,12 +47,6 @@ f_oGRReadBismarkMethylExtractor = function(file, strand){
   return(gr)  
 } # function
 
-s1 = Sys.time()
-g = f_oGRReadBismarkMethylExtractor(file, '+')
-s2 = Sys.time()
-s2 - s1
-
-
 ## connect to mysql database to get sample information
 library('RMySQL')
 
@@ -67,216 +61,220 @@ q = paste0('select Sample.id as sid, Sample.group1, Sample.group2, Sample.group3
 dfSample = dbGetQuery(db, q)
 nrow(dfSample)
 dfSample
-# close connection after getting data
-dbDisconnect(db)
 # remove any whitespace from the names
 dfSample$name = gsub(" ", "", dfSample$name, fixed = T)
 dfSample$title = gsub(" ", "", dfSample$title, fixed = T)
 
-## for each sample load the process the appropriate data
+## for each sample create the relevant files 
+f1 = function(sid){
+  i = which(dfSample$sid == sid)
+  # get file name
+  x = gsub('.bam$', '_sort2.txt.gz', dfSample$name[i])
+  cpg.ot = c(idSample=sid, name=paste0('CpG_OT_', x), type='CpG_OT', group1='CpG Original Top Strand')
+  cpg.ob = c(idSample=sid, name=paste0('CpG_OB_', x), type='CpG_OB', group1='CpG Original Bottom Strand')
+  chh.ot = c(idSample=sid, name=paste0('CHH_OT_', x), type='CHH_OT', group1='CHH Original Top Strand')
+  chh.ob = c(idSample=sid, name=paste0('CHH_OB_', x), type='CHH_OB', group1='CHH Original Bottom Strand')
+  chg.ot = c(idSample=sid, name=paste0('CHG_OT_', x), type='CHG_OT', group1='CHG Original Top Strand')
+  chg.ob = c(idSample=sid, name=paste0('CHG_OB_', x), type='CHG_OB', group1='CHG Original Bottom Strand')
+  df = rbind(cpg.ot, cpg.ob, chh.ot, chh.ob, chg.ot, chg.ob)
+  return(df)
+}
+
+dfNewData = lapply(dfSample$sid, f1)
+dfNewData = do.call(rbind, dfNewData)
+dfNewData = data.frame(dfNewData)
+
 #### set working directory to appropriate location with methylation extractor files
 setwd('~/Downloads/Temp/S107/')
 csFiles = list.files('.', pattern = '*.gz$')
 
-csSampleNames = dfSample$title
-# quick sanity check
-sapply(csSampleNames, grepl, x = csFiles)
-
-# for each sample, get the matching files
-lMatches = lapply(csSampleNames, grep, x = csFiles)
-
-
-
-
-csFiles = dfSample$name
-
-## perform the analysis one sample at a time
-## function to write the qa files
-write.qa = function(bfn, sn){
-  # open bam file
-  bf = BamFile(bfn)
-  lBam = lapply(sn, function(x){
-    return(CBamScaffold(bf, x))
-  })
-  cat(paste('done', bfn, '\n'))
-  return(lBam)
-}
-
-lAllBams = lapply(csFiles, function(x){
-  write.qa(x, cvSeqnames)
-})
-names(lAllBams) = dfSample$id
-
-## load additional metadata from bismark reports
-csFiles = list.files('.', '*report.txt$')
-## set the files in the same order as the samples
-n = gsub('PE_report.txt', 'pe.bam_q10_sort_rd.bam', csFiles)
 # sanity check
-table(n %in% dfSample$name)
-names(csFiles) = n
-i = match(dfSample$name, n)
-csFiles = csFiles[i]
-identical(names(csFiles), dfSample$name)
-names(csFiles) = dfSample$id
+table(csFiles %in% dfNewData$name)
+dim(dfNewData)
 
-df = lapply(seq_along(csFiles), function(x) dfParseBismarkReport(csFiles[x], names(csFiles)[x]))
-dfBismark = do.call(cbind, df)
+## create entry in database for these new files
+## comment out as this has been done once
+## dbWriteTable(db, name = 'File', value=dfNewData, append=T, row.names=F)
 
+## process each file at a time after loading from database
+q = paste0('select Sample.id as sid, Sample.group1, Sample.group2, Sample.group3, Sample.title, File.* from Sample, File
+           where (Sample.idData = 14) AND (File.idSample = Sample.id AND File.type like "%CpG%")')
+dfSample = dbGetQuery(db, q)
+nrow(dfSample)
+dfSample
+# remove any whitespace from the names
+dfSample$name = gsub(" ", "", dfSample$name, fixed = T)
+dfSample$title = gsub(" ", "", dfSample$title, fixed = T)
+dbDisconnect(db)
+## CpGs first
+lResults = lapply(dfSample$name, f_oGRReadBismarkMethylExtractor, '*')
+
+## take the results in pairs OT then OB 
+## assign strands and merge
+## all the even ones are minus strands and odd ones are plus
+lResults = lapply(seq_along(lResults), function(x){
+  bOdd = ifelse((x %% 2) == 0, '-', '+')  
+  strand(lResults[[x]]) = bOdd
+  return(lResults[[x]])
+})
+
+## merge ranges from same sample
+oGRLmerged = GRangesList()
+options(warn=-1)
+i = 1;
+while(i <= nrow(dfSample)){
+  gr = do.call(append, lResults[i:(i+1)])
+  oGRLmerged = append(oGRLmerged, GRangesList(gr))
+  i = i+2;
+}
+options(warn=0)
+
+oGRLmerged = sort(oGRLmerged)
+oGRLmerged.chg = oGRLmerged
+names(oGRLmerged.chg) = unique(dfSample$sid)
+rm(oGRLmerged)
+rm(lResults)
+gc(verbose = F)
+
+## this should be one file for CpG or Chh or Chg methylation
 setwd(gcswd)
-n = make.names(paste('CBamScaffold rd picard bs seq S107 miho rds'))
-lAllBams$metaBismark = dfBismark
-lAllBams$meta = dfSample
-lAllBams$desc = paste('CBamScaffold object from S107 run for bs seq data for miho ishida with quality 10 duplicates removed using picard tools', date())
+n = make.names(paste('GRangesList object for CpG methylation from bs seq S107 miho rds'))
+metadata(oGRLmerged.chg) = dfSample
 n2 = paste0('~/Data/MetaData/', n)
-save(lAllBams, file=n2)
+save(oGRLmerged.chg, file=n2)
+rm(oGRLmerged.chg)
+gc(verbose = F)
+# comment out as this has been done once
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+dbListTables(db)
+dbListFields(db, 'MetaFile')
+df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+                comment='GRangesList object for CpG methylation from S107 run for bs seq data for miho ishida produced by the methylation extractor script from bismark')
+dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+dbDisconnect(db)
+
+#################### repeat from Chh methylation
+setwd('~/Downloads/Temp/S107/')
+
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+## process each file at a time after loading from database
+q = paste0('select Sample.id as sid, Sample.group1, Sample.group2, Sample.group3, Sample.title, File.* from Sample, File
+           where (Sample.idData = 14) AND (File.idSample = Sample.id AND File.type like "%CHH%")')
+dfSample = dbGetQuery(db, q)
+nrow(dfSample)
+dfSample
+# remove any whitespace from the names
+dfSample$name = gsub(" ", "", dfSample$name, fixed = T)
+dfSample$title = gsub(" ", "", dfSample$title, fixed = T)
+dbDisconnect(db)
+## CHH second
+lResults = lapply(dfSample$name, f_oGRReadBismarkMethylExtractor, '*')
+
+## take the results in pairs OT then OB 
+## assign strands and merge
+## all the even ones are minus strands and odd ones are plus
+lResults = lapply(seq_along(lResults), function(x){
+  bOdd = ifelse((x %% 2) == 0, '-', '+')  
+  strand(lResults[[x]]) = bOdd
+  return(lResults[[x]])
+})
+
+## merge ranges from same sample
+oGRLmerged = GRangesList()
+options(warn=-1)
+i = 1;
+while(i <= nrow(dfSample)){
+  gr = do.call(append, lResults[i:(i+1)])
+  oGRLmerged = append(oGRLmerged, GRangesList(gr))
+  i = i+2;
+}
+options(warn=0)
+
+oGRLmerged = sort(oGRLmerged)
+oGRLmerged.chh = oGRLmerged
+names(oGRLmerged.chh) = unique(dfSample$sid)
+rm(oGRLmerged)
+rm(lResults)
+gc(verbose = F)
+
+## this should be one file for CpG or Chh or Chg methylation
+setwd(gcswd)
+n = make.names(paste('GRangesList object for CHH methylation from bs seq S107 miho rds'))
+metadata(oGRLmerged.chh) = dfSample
+n2 = paste0('~/Data/MetaData/', n)
+save(oGRLmerged.chh, file=n2)
+rm(oGRLmerged.chh)
+gc(verbose = F)
 
 # comment out as this has been done once
-# library('RMySQL')
-# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
-# dbListTables(db)
-# dbListFields(db, 'MetaFile')
-# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
-#                 comment='CBamScaffold object from S107 run for bs seq data for miho ishida with quality 10 duplicates removed and standard settings on trimmomatic
-#                 with bismark alignment report as metadata. Processed using Picard tools instead of samtools.')
-# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-# dbDisconnect(db)
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+dbListTables(db)
+dbListFields(db, 'MetaFile')
+df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+                comment='GRangesList object for CHH methylation from S107 run for bs seq data for miho ishida produced by the methylation extractor script from bismark')
+dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+dbDisconnect(db)
 
-### create the plots of interest
-getwd()
-lAllBams$desc = NULL
-lAllBams$meta = NULL
-dfBismark = lAllBams$metaBismark
-lAllBams$metaBismark = NULL
-names(lAllBams) = dfSample$title
-colnames(dfBismark) = dfSample$title
 
-pdf(file='Results/bam.q10.rd.qa.picard.pdf')
-par(mfrow=c(2,2))
-## returns the coverage for each scaffold in the bam file in matrix
-f1 = function(ob){
-  mat = sapply(ob, CBamScaffold.getCoverage)
-  n = sapply(ob, CBamScaffold.getSeqname)
-  colnames(mat) = n
-  return(log(mat+1))
-}
+################ repeat for CHG methylation
+setwd('~/Downloads/Temp/S107/')
 
-## call the function f1
-lMat = lapply(lAllBams, f1)
-i = seq_along(cvSeqnames)
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+## process each file at a time after loading from database
+q = paste0('select Sample.id as sid, Sample.group1, Sample.group2, Sample.group3, Sample.title, File.* from Sample, File
+           where (Sample.idData = 14) AND (File.idSample = Sample.id AND File.type like "%CHG%")')
+dfSample = dbGetQuery(db, q)
+nrow(dfSample)
+dfSample
+# remove any whitespace from the names
+dfSample$name = gsub(" ", "", dfSample$name, fixed = T)
+dfSample$title = gsub(" ", "", dfSample$title, fixed = T)
+dbDisconnect(db)
+## CHG third
+lResults = lapply(dfSample$name, f_oGRReadBismarkMethylExtractor, '*')
 
-## reorder the matrix, so that same chromosome/scaffold from all bam files are in one matrix
-lMat.ordered = lapply(i, function(x){
-  m = sapply(lMat, function(y) y[,x])
+## take the results in pairs OT then OB 
+## assign strands and merge
+## all the even ones are minus strands and odd ones are plus
+lResults = lapply(seq_along(lResults), function(x){
+  bOdd = ifelse((x %% 2) == 0, '-', '+')  
+  strand(lResults[[x]]) = bOdd
+  return(lResults[[x]])
 })
 
-names(lMat.ordered) = cvSeqnames
-iCol = rainbow(length(lAllBams))
-## plot the lowess profile 
-temp = sapply(cvSeqnames, function(x){
-  m = apply(lMat.ordered[[x]], 2, function(y) lowess(y, f=2/10)$y )
-  matplot(m, type='l', main=paste('Lowess fit to coverage', x), col=iCol, xlab='Bins', sub='Binned Coverage', ylab='Coverage', 
-          lty=1:length(iCol))
-})
-
-par(mfrow=c(1,1))
-plot.new()
-legend('center', legend = names(lAllBams), ncol=3, col = iCol, lty=1:length(iCol), cex=0.6, lwd=2)
-
-
-## average coverage, read width
-## modify function with replace = T 
-#CBamScaffold.getReadWidthSample = function(obj, size=1000) sample(obj@ivReadWidth, size = size, replace = T)
-
-f1 = function(ob){
-  mat = sapply(ob, CBamScaffold.getReadWidthSample)
-  n = sapply(ob, CBamScaffold.getSeqname)
-  colnames(mat) = n
-  return(mean(colMeans(mat)))
+## merge ranges from same sample
+oGRLmerged = GRangesList()
+options(warn=-1)
+i = 1;
+while(i <= nrow(dfSample)){
+  gr = do.call(append, lResults[i:(i+1)])
+  oGRLmerged = append(oGRLmerged, GRangesList(gr))
+  i = i+2;
 }
+options(warn=0)
 
-## call the function f1
-ivMat = sapply(lAllBams, f1)
-barplot(ivMat, las=2, main='Average Read Width', ylab = 'Average Read Width', cex.names =0.6)
+oGRLmerged = sort(oGRLmerged)
+oGRLmerged.chg = oGRLmerged
+names(oGRLmerged.chg) = unique(dfSample$sid)
+rm(oGRLmerged)
+rm(lResults)
+gc(verbose = F)
 
-# number of reads aligned
-f1 = function(ob){
-  n = sapply(ob, function(x) length(CBamScaffold.getReadWidth(x)))
-  n = sum(n)/1e+6
-  return(n)
-}
+## this should be one file for CpG or Chh or Chg methylation
+setwd(gcswd)
+n = make.names(paste('GRangesList object for CHG methylation from bs seq S107 miho rds'))
+metadata(oGRLmerged.chg) = dfSample
+n2 = paste0('~/Data/MetaData/', n)
+save(oGRLmerged.chh, file=n2)
+rm(oGRLmerged.chg)
+gc(verbose = F)
 
-iReadCount = sapply(lAllBams, f1)
+# comment out as this has been done once
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+dbListTables(db)
+dbListFields(db, 'MetaFile')
+df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+                comment='GRangesList object for CHG methylation from S107 run for bs seq data for miho ishida produced by the methylation extractor script from bismark')
+dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+dbDisconnect(db)
 
-barplot(iReadCount, las=2, main='No. of reads aligned', ylab = 'No. of Reads in Millions', cex.names =0.8)
-mReadCount = rbind(iReadCount, as.numeric(dfBismark[2,])*2)
-rownames(mReadCount) = c('Post', 'Pre')
-
-barplot(mReadCount, beside=T, las=2, main='No. of reads aligned', ylab = 'No. of Reads in Millions', cex.names =0.8,
-        ylim=c(0, 250))
-legend('topright', legend = c('Dup Rem', 'Orig'), fill=c('black', 'grey'))
-
-# average binned coverage distribution
-f1 = function(ob){
-  mat = sapply(ob, getCoverageGammaParam)['shape',]
-  n = sapply(ob, CBamScaffold.getSeqname)
-  names(mat) = n
-  return(mat)
-}
-
-## call the function f1
-lMat = lapply(lAllBams, function(x) tryCatch(expr = f1(x), error=function(e)NULL))
-
-boxplot(lMat, las=2, main='Average Binned Coverage', ylab = 'Average', outline=F, xaxt='n')
-axis(1, at=1:length(lMat), labels = names(lMat), cex.axis=0.7, las=2)
-
-#### average lowess profile for each group
-f1 = function(ob){
-  mat = sapply(ob, CBamScaffold.getCoverage)
-  n = sapply(ob, CBamScaffold.getSeqname)
-  colnames(mat) = n
-  return(log(mat+1))
-}
-
-lMat = lapply(lAllBams, f1)
-i = seq_along(cvSeqnames)
-
-## reorder the matrix, so that same chromosome/scaffold from all bam files are in one matrix
-lMat.ordered = lapply(i, function(x){
-  m = sapply(lMat, function(y) y[,x])
-})
-
-names(lMat.ordered) = cvSeqnames
-# choose the grouping to colour with
-head(dfSample)
-fGroups = factor(dfSample$group1)
-levels(fGroups)
-names(lAllBams)
-# make sure the names and factors are in same order
-
-iCol = rainbow(nlevels(fGroups))
-## plot the lowess profile 
-temp = sapply(cvSeqnames, function(x){
-  m = lMat.ordered[[x]]
-  m.av = sapply(levels(fGroups), function(l) {
-    i = which(fGroups == l)
-    rowMeans(m[,i])
-  })
-  m = apply(m.av, 2, function(y) lowess(y, f=2/10)$y)
-  matplot(m, type='l', main=paste('Lowess fit to coverage', x), lwd=2, col=iCol, xlab='Bins', sub='Binned Coverage', ylab='Coverage', 
-          lty=1)
-  legend('bottomright', legend = levels(fGroups), ncol=1, col = iCol, lty=1, cex=1, lwd=2)
-})
-# 
-# par(mfrow=c(1,1))
-# plot.new()
-# legend('center', legend = levels(fGroups), ncol=3, col = iCol, lty=1:length(iCol), cex=0.6, lwd=2)
-
-dev.off(dev.cur())
-
-
-
-# bf = BamFile('/run/user/1000/gvfs/sftp:host=10.202.64.28,user=k1625253/users/k1625253/Data/ProjectsData/BRC_Keloid/Aligned/S014/K2-2nd_S014_R1_.fastq.gz_q10_sort_rd.bam')
-# si = seqinfo(bf)
-# si = as.data.frame(si)
-# si = si[order(si$seqlengths, decreasing = T),]
-# sn = rownames(si[1:24,])
