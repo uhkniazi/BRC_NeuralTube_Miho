@@ -39,3 +39,12 @@ dfParseBismarkReport = function(reportFile, title=''){
   df[,1] = gsub(" ", "", df[,1], fixed = T)
   return(df)
 }
+
+f_LoadObject = function(r.obj.file)
+{
+  # temp environment to load object
+  env <- new.env()
+  # read object
+  nm <- load(r.obj.file, env)[1]
+  return(env[[nm]])
+}
