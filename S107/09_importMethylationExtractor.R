@@ -141,19 +141,21 @@ setwd(gcswd)
 n = make.names(paste('GRangesList object for CpG methylation from bs seq S107 miho rds'))
 metadata(oGRLmerged.chg) = dfSample
 n2 = paste0('~/Data/MetaData/', n)
-save(oGRLmerged.chg, file=n2)
+#save(oGRLmerged.chg, file=n2)
 rm(oGRLmerged.chg)
 gc(verbose = F)
 # comment out as this has been done once
-db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
-dbListTables(db)
-dbListFields(db, 'MetaFile')
-df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
-                comment='GRangesList object for CpG methylation from S107 run for bs seq data for miho ishida produced by the methylation extractor script from bismark')
-dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-dbDisconnect(db)
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='GRangesList object for CpG methylation from S107 run for bs seq data for miho ishida produced by the methylation extractor script from bismark')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
 
 #################### repeat from Chh methylation
+############# this section needs re-writing, try forking a process instead of doing it this session
+
 setwd('~/Downloads/Temp/S107/')
 
 db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
