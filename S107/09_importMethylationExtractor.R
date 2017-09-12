@@ -169,6 +169,13 @@ dfSample
 dfSample$name = gsub(" ", "", dfSample$name, fixed = T)
 dfSample$title = gsub(" ", "", dfSample$title, fixed = T)
 dbDisconnect(db)
+
+## run this for each sample at a time 
+temp = sapply(seq_along(dfSample$name), function(xn){
+  p = paste0('Rscript ', gcswd, '/09.2_importMethylationExtractorFork.R ', dfSample$name[xn])
+  system(command = p, intern = T)
+})
+
 ## CHH second
 lResults = lapply(dfSample$name, f_oGRReadBismarkMethylExtractor, '*')
 
