@@ -45,7 +45,7 @@ rownames(dfSamples) = NULL
 # dbWriteTable(db, name='Sample', value=dfSamples, append=T, row.names=F)
 # get this table again from database with ids added
 g_did
-dfSamples = dbGetQuery(db, paste('select * from Sample where Sample.idData = 14;'))
+dfSamples = dbGetQuery(db, paste('select * from Sample where Sample.idData = 15;'))
 
 # create entries for these files in the database
 dbListTables(db)
