@@ -1,7 +1,7 @@
 # File: 03_trimmomatic_array_job.R
 # Auth: umar.niazi@kcl.as.uk
 # DESC: create a parameter file and shell script to run array job on hpc
-# Date: 15/08/2017
+# Date: 03/10/2017
 
 
 ## set variables and source libraries
@@ -17,14 +17,14 @@ dbListTables(db)
 # check how many files each sample has
 g_did
 q = paste0('select count(File.idSample) as files, Sample.idData, Sample.title, Sample.id as SampleID from File, Sample
-           where (Sample.idData = 14 and File.idSample = Sample.id) group by File.idSample')
+           where (Sample.idData = 15 and File.idSample = Sample.id) group by File.idSample')
 dfQuery = dbGetQuery(db, q)
 dfQuery$title = gsub(" ", "", dfQuery$title, fixed = T)
 dfQuery
 
 # for each sample id, get the corresponding files
 cvQueries = paste0('select File.*, Sample.title from File, Sample 
-                   where (Sample.idData = 14 and Sample.id =', dfQuery$SampleID, ') and (File.idSample = Sample.id)')
+                   where (Sample.idData = 15 and Sample.id =', dfQuery$SampleID, ') and (File.idSample = Sample.id)')
 
 # set header variables 
 cvShell = '#!/bin/bash'
