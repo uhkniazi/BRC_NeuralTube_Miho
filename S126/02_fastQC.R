@@ -1,7 +1,7 @@
 # File: 02_fastQC.R
 # Auth: umar.niazi@kcl.ac.uk
 # DESC: quality checks on the fastq files before trimming
-# Date: 11/08/2017
+# Date: 03/10/2017
 
 
 ## set variables and source libraries
@@ -24,7 +24,7 @@ dbListTables(db)
 dbListFields(db, 'Sample')
 # another way to get the query, preferred
 g_did
-dfSample = dbGetQuery(db, "select * from Sample where idData=14;")
+dfSample = dbGetQuery(db, "select * from Sample where idData=15;")
 # remove any whitespace from the names
 dfSample$title = gsub(" ", "", dfSample$title, fixed = T)
 head(dfSample)
@@ -40,7 +40,7 @@ dfFiles = do.call(rbind, df)
 dbDisconnect(db)
 
 #### get the names of the fastq files for first sequencing run
-setwd('DataExternal/raw/processed/')
+setwd('dataExternal/raw/Raw/S126/S126/processed/')
 csFiles = list.files('.', pattern = '*.gz')
 
 # sanity check if all files present in directory
@@ -69,10 +69,10 @@ lOb = lapply(ivFilesIndex, function(x){
 
 names(lOb) = as.character(dfFiles$id)
 setwd(gcswd)
-n = make.names(paste('CFastqQuality S107 run for Miho BS Seq project id 8'))
+n = make.names(paste('CFastqQuality S126 run for Miho BS Seq project id 8'))
 lOb$meta.1 = dfSample
 lOb$meta.2 = dfFiles
-lOb$desc = paste('CFastqQuality object S107 run for Miho BS Seq project id 8', date())
+lOb$desc = paste('CFastqQuality object S126 run for Miho BS Seq project id 8', date())
 n2 = paste0('~/Data/MetaData/', n)
 save(lOb, file=n2)
 
@@ -90,7 +90,11 @@ lOb$desc = NULL
 lOb$meta.1 = NULL
 lOb$meta.2 = NULL
 
-pdf(file='Results/qa.fastq.pdf')
+cvSampleNames = gsub('(M\\d+).+', '\\1', dfFiles$name)
+cvSampleNames = paste(cvSampleNames, gsub('.+_(R[1|2])_.+', '\\1', dfFiles$name), sep='_')
+names(lOb) = cvSampleNames
+
+pdf(file='results/qa.fastq.pdf')
 
 iReadCount = sapply(lOb, CFastqQuality.getReadCount)
 iReadCount = iReadCount/1e+6
@@ -123,7 +127,7 @@ lAlphabets = lapply(i, function(x){
 matplot(lAlphabets[[1]], type='l', main='Pre-trim Sequence Content - Forward Strands', ylab = 'Proportion of Base count', xlab='Position in Read')
 temp = lapply(lAlphabets[-1], function(x)
   matlines(x, type='l'))
-legend('right', legend = colnames(lAlphabets[[1]]), lty=1:4, col=1:4, ncol=2, lwd=2)
+legend('topleft', legend = colnames(lAlphabets[[1]]), lty=1:4, col=1:4, ncol=2, lwd=2)
 
 # reverse strands
 i = grep('_R2_', dfFiles$name)
@@ -139,7 +143,7 @@ lAlphabets = lapply(i, function(x){
 matplot(lAlphabets[[1]], type='l', main='Pre-trim Sequence Content - Reverse Strands', ylab = 'Proportion of Base count', xlab='Position in Read')
 temp = lapply(lAlphabets[-1], function(x)
   matlines(x, type='l'))
-legend('right', legend = colnames(lAlphabets[[1]]), lty=1:4, col=1:4, ncol=2, lwd=2)
+legend('topleft', legend = colnames(lAlphabets[[1]]), lty=1:4, col=1:4, ncol=2, lwd=2)
 
 ### some diagnostic plots
 url = 'https://raw.githubusercontent.com/uhkniazi/CDiagnosticPlots/master/CDiagnosticPlots.R'
@@ -153,7 +157,7 @@ unlink('CDiagnosticPlots.R')
 db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
 dbListTables(db)
 g_did
-q = paste0('select File.id as fid, File.name, File.type, Sample.* from File, Sample where Sample.idData = 14 AND (File.idSample = Sample.id AND File.type like "%fastq%")')
+q = paste0('select File.id as fid, File.name, File.type, Sample.* from File, Sample where Sample.idData = 15 AND (File.idSample = Sample.id AND File.type like "%fastq%")')
 dfBatches = dbGetQuery(db, q)
 dbDisconnect(db)
 
@@ -170,6 +174,9 @@ mBatch = mQuality
 colnames(mBatch) = paste0(dfBatches$fid, '-', dfBatches$title, '-', as.character(fReadDirection))
 
 oDiag = CDiagnosticPlots(mBatch, 'Pre-trim Base Quality')
+l = CDiagnosticPlotsGetParameters(oDiag)
+l$PCA.jitter = F; l$HC.jitter = F;
+oDiag = CDiagnosticPlotsSetParameters(oDiag, l)
 
 plot.mean.summary(oDiag, fReadDirection)
 plot.sigma.summary(oDiag, fReadDirection)
@@ -178,12 +185,14 @@ plot.PCA(oDiag, fReadDirection)
 plot.dendogram(oDiag, fReadDirection, labels_cex = 0.8)
 
 ## try a new batch
-fBatch = factor(fGenotype)
+fBatch = factor(fDiet)
 plot.mean.summary(oDiag, fBatch)
 plot.sigma.summary(oDiag, fBatch)
 boxplot.median.summary(oDiag, fBatch)
 plot.PCA(oDiag, fBatch)
 plot.dendogram(oDiag, fBatch, labels_cex = 0.8)
+
+
 
 dev.off(dev.cur())
 
