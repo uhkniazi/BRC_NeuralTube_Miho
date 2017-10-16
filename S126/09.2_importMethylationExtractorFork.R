@@ -10,41 +10,47 @@
 #       in a GRagnes sorted object
 # Args: file: name of bismark file; strand: strand + or -
 # Rets: single stranded, sorted GRanges object with a Methylated mcols boolean variable
-f_oGRReadBismarkMethylExtractor = function(file, strand){
+f_oGRReadBismarkMethylExtractor = function(file, strand, iSeek=0){
   # read the data from the tab separated file
   # also skip the first line as it has comments
   require(GenomicRanges)
   # define string splitting function
   f1 = function(str) strsplit(str, '\t', fixed=T)[[1]]
-  gr = GRanges()
   # open the file 
   infile = file(file, 'r')
   input = readLines(infile, n = 1)
+  if (iSeek > 0) seek(infile, where=iSeek)
   options(warn = -1)
-  while(TRUE){
-    input = readLines(infile, n = 2000000)
-    if (length(input) == 0) break; 
-    ## create a array/data frame from the string
-    df = vapply(input, f1, FUN.VALUE = character(5), USE.NAMES = F)
-    ## mark strings with non methylated cytosines
-    f = df[2,] != '-'
-    # create a GRanges object
-    grtemp = GRanges(df[3,], IRanges(as.numeric(df[4,]), as.numeric(df[4,])), strand=strand)
-    # add methylated flag
-    grtemp$Methylated = f
-    gr = append(gr, grtemp)
-  }
+  input = readLines(infile, n = 1000000)
+  if (length(input) == 0) return(list(ranges=NA, pointer=-1)); 
+  ## create a array/data frame from the string
+  df = vapply(input, f1, FUN.VALUE = character(5), USE.NAMES = F)
+  ## mark strings with non methylated cytosines
+  f = df[2,] != '-'
+  # create a GRanges object
+  gr = GRanges(df[3,], IRanges(as.numeric(df[4,]), as.numeric(df[4,])), strand=strand)
+  # add methylated flag
+  gr$Methylated = f
+  # get current file pointer position
+  iRet = seek(infile)
   close(infile)
   options(warn = 0)
-  gr = sort(gr)
+  #gr = sort(gr)
   # garbage collector
   gc(verbose = FALSE)
-  return(gr)  
+  return(list(ranges=gr, pointer=iRet))  
 } # function
 
 args = commandArgs(trailingOnly = TRUE)
 
-gr = f_oGRReadBismarkMethylExtractor(args[1], '*')
-save(gr, file=paste0('~/Data/Temp/', args[1], '.rds'))
-print('done')
+lRet = f_oGRReadBismarkMethylExtractor(args[1], args[2], as.numeric(args[3]))
+
+if (lRet$pointer == -1) print(-1) else {
+  n = paste('~/Data/Temp/', args[1], '_Part', lRet$pointer, '_.rds', sep='')
+  gr = lRet$ranges
+  save(gr, file=n)
+  print(lRet$pointer)  
+}
+
+
 
