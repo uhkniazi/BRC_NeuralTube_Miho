@@ -9,44 +9,6 @@ source('header.R')
 
 library(GenomicRanges)
 
-# Function: f_oGRReadBismarkMethylExtractor
-# Desc: as input it takes the name of the file (tab separated) created by methyl_extractor script
-#       in bismark and the strand i.e. + for OT files (Original Top) and - for OB. returns the data
-#       in a GRagnes sorted object
-# Args: file: name of bismark file; strand: strand + or -
-# Rets: single stranded, sorted GRanges object with a Methylated mcols boolean variable
-f_oGRReadBismarkMethylExtractor = function(file, strand){
-  # read the data from the tab separated file
-  # also skip the first line as it has comments
-  require(GenomicRanges)
-  # define string splitting function
-  f1 = function(str) strsplit(str, '\t', fixed=T)[[1]]
-  gr = GRanges()
-  # open the file 
-  infile = file(file, 'r')
-  input = readLines(infile, n = 1)
-  options(warn = -1)
-  while(TRUE){
-    input = readLines(infile, n = 2000000)
-    if (length(input) == 0) break; 
-    ## create a array/data frame from the string
-    df = vapply(input, f1, FUN.VALUE = character(5), USE.NAMES = F)
-    ## mark strings with non methylated cytosines
-    f = df[2,] != '-'
-    # create a GRanges object
-    grtemp = GRanges(df[3,], IRanges(as.numeric(df[4,]), as.numeric(df[4,])), strand=strand)
-    # add methylated flag
-    grtemp$Methylated = f
-    gr = append(gr, grtemp)
-  }
-  close(infile)
-  options(warn = 0)
-  gr = sort(gr)
-  # garbage collector
-  gc(verbose = FALSE)
-  return(gr)  
-} # function
-
 ## connect to mysql database to get sample information
 library('RMySQL')
 
@@ -107,51 +69,150 @@ dfSample$name = gsub(" ", "", dfSample$name, fixed = T)
 dfSample$title = gsub(" ", "", dfSample$title, fixed = T)
 dbDisconnect(db)
 ## CpGs first
-lResults = lapply(dfSample$name, f_oGRReadBismarkMethylExtractor, '*')
 
-## take the results in pairs OT then OB 
-## assign strands and merge
-## all the even ones are minus strands and odd ones are plus
-lResults = lapply(seq_along(lResults), function(x){
-  bOdd = ifelse((x %% 2) == 0, '-', '+')  
-  strand(lResults[[x]]) = bOdd
-  return(lResults[[x]])
+lResults = lapply(dfSample$name, function(cvFileCur){
+  st = ifelse(grepl(pattern = 'OT', cvFileCur), '+', '-')
+  system(command=paste0('gunzip -k ', cvFileCur), intern = T)
+  cvFileCur = gsub('.gz$', '', cvFileCur)
+  iSeek = 0
+  while(iSeek >= 0){
+    p = paste0('Rscript ', gcswd, '/09.2_importMethylationExtractorFork.R ', cvFileCur, ' ', st, ' ' , iSeek)
+    cvConsole = system(command = p, intern = T)
+    iSeek = as.numeric(gsub('^\\[\\d+\\] ', '', cvConsole))
+  }
+  csPartFiles = list.files('~/Data/Temp/', '*.rds', full.names = T)
+  gr = lapply(csPartFiles, f_LoadObject)
+  gr = unlist(GRangesList(gr))
+  unlink(csPartFiles)
+  unlink(cvFileCur)
+  ## make changes here to save this granges object 
+  ## temporarily to the disk and not to create a list results object
+  ## that takes up too much memory
+  return(gr)
 })
 
+cvFileCur = gsub('.gz$', '.rds', dfSample$name)
+cvPath = paste0('~/Data/Temp/', cvFileCur)
+
+for (i in 1:length(cvFileCur)){
+  gr = lResults[[i]]
+  save(gr, file=cvPath[i])
+}
+
+## clean up memory
+rm(lResults)
+gc(reset = T)
+
+## now load each granges object 
+## take the results in pairs OT then OB 
+## first clean up and then merge the ranges
+cleanData = function(path){
+  oGRbis = f_LoadObject(path)
+  ## get the regions that are methylated
+  oGRbis.M = oGRbis[oGRbis$Methylated]
+  oGRbis.Munique = unique(oGRbis.M)
+  
+  ## count the methylated regions i.e. oGRbis.Munique seen methylated and unmethylated
+  ivMethylated = countOverlaps(oGRbis.Munique, oGRbis.M)
+  ivUnmethylated = countOverlaps(oGRbis.Munique, oGRbis[!oGRbis$Methylated])
+  ## sanity check with total coverage
+  ivTotal = countOverlaps(oGRbis.Munique, oGRbis)
+  
+  ## add this information to the object
+  oGRbis.Munique$ivMethylated = ivMethylated
+  oGRbis.Munique$ivUnmethylated = ivUnmethylated
+  oGRbis.Munique$ivTotal = ivTotal
+  
+  rm(list = c('oGRbis', 'oGRbis.M', 'ivTotal', 'ivMethylated', 'ivUnmethylated'))
+  gc(reset = T)
+  return(oGRbis.Munique)
+}
+
+
 ## merge ranges from same sample
-oGRLmerged = GRangesList()
 options(warn=-1)
 i = 1;
-while(i <= nrow(dfSample)){
-  gr = do.call(append, lResults[i:(i+1)])
-  oGRLmerged = append(oGRLmerged, GRangesList(gr))
-  i = i+2;
-}
+i <= nrow(dfSample)
+gr.ot = cleanData(cvPath[i])
+gr.ob = cleanData(cvPath[i+1])
+gr1 = append(gr.ot, gr.ob)
+rm(gr.ot); rm(gr.ob); gc(reset = T)
+
+i = i+2;
+i <= nrow(dfSample)
+gr.ot = cleanData(cvPath[i])
+gr.ob = cleanData(cvPath[i+1])
+gr2 = append(gr.ot, gr.ob)
+rm(gr.ot); rm(gr.ob); gc(reset = T)
+
+i = i+2;
+i <= nrow(dfSample)
+gr.ot = cleanData(cvPath[i])
+gr.ob = cleanData(cvPath[i+1])
+gr3 = append(gr.ot, gr.ob)
+rm(gr.ot); rm(gr.ob); gc(reset = T)
+
+i = i+2;
+i <= nrow(dfSample)
+gr.ot = cleanData(cvPath[i])
+gr.ob = cleanData(cvPath[i+1])
+gr4 = append(gr.ot, gr.ob)
+rm(gr.ot); rm(gr.ob); gc(reset = T)
+
+i = i+2;
+i <= nrow(dfSample)
+gr.ot = cleanData(cvPath[i])
+gr.ob = cleanData(cvPath[i+1])
+gr5 = append(gr.ot, gr.ob)
+rm(gr.ot); rm(gr.ob); gc(reset = T)
+
+i = i+2;
+i <= nrow(dfSample)
+gr.ot = cleanData(cvPath[i])
+gr.ob = cleanData(cvPath[i+1])
+gr6 = append(gr.ot, gr.ob)
+rm(gr.ot); rm(gr.ob); gc(reset = T)
+
+i = i+2;
+i <= nrow(dfSample)
+gr.ot = cleanData(cvPath[i])
+gr.ob = cleanData(cvPath[i+1])
+gr7 = append(gr.ot, gr.ob)
+rm(gr.ot); rm(gr.ob); gc(reset = T)
+
+i = i+2;
+i <= nrow(dfSample)
+gr.ot = cleanData(cvPath[i])
+gr.ob = cleanData(cvPath[i+1])
+gr8 = append(gr.ot, gr.ob)
+rm(gr.ot); rm(gr.ob); gc(reset = T)
+
+oGRLmerged = GRangesList(gr1, gr2, gr3, gr4, gr5, gr6, gr7, gr8)
+rm(list=c('gr1', 'gr2', 'gr3', 'gr4', 'gr5', 'gr6', 'gr7', 'gr8'))
+gc(reset = T)
+
 options(warn=0)
 
+
 oGRLmerged = sort(oGRLmerged)
-oGRLmerged.chg = oGRLmerged
-names(oGRLmerged.chg) = unique(dfSample$sid)
-rm(oGRLmerged)
-rm(lResults)
-gc(verbose = F)
+names(oGRLmerged) = unique(dfSample$sid)
+gc(reset = T)
 
 ## this should be one file for CpG or Chh or Chg methylation
 setwd(gcswd)
 n = make.names(paste('GRangesList object for CpG methylation from bs seq S126 miho rds'))
-metadata(oGRLmerged.chg) = dfSample
+metadata(oGRLmerged) = dfSample
 n2 = paste0('~/Data/MetaData/', n)
-save(oGRLmerged.chg, file=n2)
-rm(oGRLmerged.chg)
-gc(verbose = F)
+save(oGRLmerged, file=n2)
+
 # comment out as this has been done once
-# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
-# dbListTables(db)
-# dbListFields(db, 'MetaFile')
-# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
-#                 comment='GRangesList object for CpG methylation from S107 run for bs seq data for miho ishida produced by the methylation extractor script from bismark')
-# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-# dbDisconnect(db)
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+dbListTables(db)
+dbListFields(db, 'MetaFile')
+df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+                comment='GRangesList object for CpG methylation from S126 run for bs seq data for miho ishida produced by the methylation extractor script from bismark')
+dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+dbDisconnect(db)
 
 #################### repeat from Chh methylation
 ############# this section needs re-writing, try forking a process instead of doing it this session
@@ -287,3 +348,41 @@ df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
 dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
 dbDisconnect(db)
 
+
+# # Function: f_oGRReadBismarkMethylExtractor
+# # Desc: as input it takes the name of the file (tab separated) created by methyl_extractor script
+# #       in bismark and the strand i.e. + for OT files (Original Top) and - for OB. returns the data
+# #       in a GRagnes sorted object
+# # Args: file: name of bismark file; strand: strand + or -
+# # Rets: single stranded, sorted GRanges object with a Methylated mcols boolean variable
+# f_oGRReadBismarkMethylExtractor = function(file, strand){
+#   # read the data from the tab separated file
+#   # also skip the first line as it has comments
+#   require(GenomicRanges)
+#   # define string splitting function
+#   f1 = function(str) strsplit(str, '\t', fixed=T)[[1]]
+#   gr = GRanges()
+#   # open the file 
+#   infile = file(file, 'r')
+#   input = readLines(infile, n = 1)
+#   options(warn = -1)
+#   while(TRUE){
+#     input = readLines(infile, n = 2000000)
+#     if (length(input) == 0) break; 
+#     ## create a array/data frame from the string
+#     df = vapply(input, f1, FUN.VALUE = character(5), USE.NAMES = F)
+#     ## mark strings with non methylated cytosines
+#     f = df[2,] != '-'
+#     # create a GRanges object
+#     grtemp = GRanges(df[3,], IRanges(as.numeric(df[4,]), as.numeric(df[4,])), strand=strand)
+#     # add methylated flag
+#     grtemp$Methylated = f
+#     gr = append(gr, grtemp)
+#   }
+#   close(infile)
+#   options(warn = 0)
+#   gr = sort(gr)
+#   # garbage collector
+#   gc(verbose = FALSE)
+#   return(gr)  
+# } # function
