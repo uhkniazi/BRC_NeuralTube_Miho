@@ -41,3 +41,5 @@ DataExternal/
 Results/
 temp/
 dataExternal/
+results/
+testing.R
