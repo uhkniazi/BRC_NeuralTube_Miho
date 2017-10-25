@@ -1,0 +1,6 @@
+input/trim_M545_S3_L003_R1_001.fastq.gz input/trim_M545_S3_L003_R2_001.fastq.gz
+input/trim_M595_S6_L006_R1_001.fastq.gz input/trim_M595_S6_L006_R2_001.fastq.gz
+input/trim_M628_S4_L004_R1_001.fastq.gz input/trim_M628_S4_L004_R2_001.fastq.gz
+input/trim_M67_S1_L001_R1_001.fastq.gz input/trim_M67_S1_L001_R2_001.fastq.gz
+input/trim_M681_S5_L005_R1_001.fastq.gz input/trim_M681_S5_L005_R2_001.fastq.gz
+input/trim_M685_S2_L002_R1_001.fastq.gz input/trim_M685_S2_L002_R2_001.fastq.gz
