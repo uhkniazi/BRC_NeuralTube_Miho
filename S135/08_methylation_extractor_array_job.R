@@ -1,7 +1,7 @@
 # File: 08_methylation_extractor_array_job.R
 # Auth: umar.niazi@kcl.as.uk
 # DESC: create a parameter file and shell script to run array job on hpc
-# Date: 11/10/2017
+# Date: 02/11/2017
 
 
 ## set variables and source libraries
@@ -17,7 +17,7 @@ dbListTables(db)
 # check how many files each sample has
 g_did
 q = paste0('select Sample.id as sid, Sample.group1, Sample.group2, Sample.group3, Sample.title, File.* from Sample, File
-           where (Sample.idData = 15) AND (File.idSample = Sample.id AND File.type like "%duplicates removed%")')
+           where (Sample.idData = 20) AND (File.idSample = Sample.id AND File.type like "%duplicates removed%")')
 dfSample = dbGetQuery(db, q)
 nrow(dfSample)
 dfSample
