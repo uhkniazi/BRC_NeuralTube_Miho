@@ -48,3 +48,20 @@ f_LoadObject = function(r.obj.file)
   nm <- load(r.obj.file, env)[1]
   return(env[[nm]])
 }
+
+
+# Function: f_bin_vector
+# DESC: Takes the start and end values of the vector; and the number of
+#       bins, and returns a data.frame with the start and ends of the 
+#       bins
+# ARGS: start coordinate, end coordinate, and number of bins
+# RETS: a data.frame object with starts and ends of each bin
+f_bin_vector = function(start, end, bins){
+  s = floor(seq(start, end, length.out=bins+1))
+  e = s-1
+  e[length(e)] = s[length(s)]
+  length(s) = length(s)-1
+  e = e[2:length(e)]
+  return(data.frame(start=s, end=e))
+}# f_bin_vector
+
