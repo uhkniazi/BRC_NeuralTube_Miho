@@ -1,0 +1,2 @@
+input/M267_S2_L002_R1_001.fastq.gz input/M267_S2_L002_R2_001.fastq.gz output/Trimmed/trim_M267_S2_L002_R1_001.fastq.gz output/Trimmed/Unpaired/up_M267_S2_L002_R1_001.fastq.gz output/Trimmed/trim_M267_S2_L002_R2_001.fastq.gz output/Trimmed/Unpaired/up_M267_S2_L002_R2_001.fastq.gz
+input/M291_S1_L001_R1_001.fastq.gz input/M291_S1_L001_R2_001.fastq.gz output/Trimmed/trim_M291_S1_L001_R1_001.fastq.gz output/Trimmed/Unpaired/up_M291_S1_L001_R1_001.fastq.gz output/Trimmed/trim_M291_S1_L001_R2_001.fastq.gz output/Trimmed/Unpaired/up_M291_S1_L001_R2_001.fastq.gz
