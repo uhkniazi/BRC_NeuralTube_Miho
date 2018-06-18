@@ -1,0 +1,2 @@
+input/trim_M267_S2_L002_R1_001.fastq.gz input/trim_M267_S2_L002_R2_001.fastq.gz
+input/trim_M291_S1_L001_R1_001.fastq.gz input/trim_M291_S1_L001_R2_001.fastq.gz
