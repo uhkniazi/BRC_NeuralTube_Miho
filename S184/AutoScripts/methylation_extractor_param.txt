@@ -1,0 +1,2 @@
+input/trim_M267_S2_L002_R1_001_bismark_bt2_pe.bam_q10_sort_rd_sort2.bam
+input/trim_M291_S1_L001_R1_001_bismark_bt2_pe.bam_q10_sort_rd_sort2.bam
